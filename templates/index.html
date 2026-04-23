@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SONGSYS — Content-based Song Recommender</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,700;9..144,900&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:       #0f0e0d;
+    --paper:     #f4ebdc;
+    --paper-2:   #ede2ce;
+    --accent:    #d1441e;   /* red-orange */
+    --accent-2:  #1b3a4b;   /* midnight teal */
+    --mute:      #77695a;
+    --rule:      #0f0e0d;
+    --ok:        #2f6f3a;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{background:var(--paper); color:var(--ink); font-family:'Inter', sans-serif; font-weight:400}
+  body{
+    background-image:
+      radial-gradient(circle at 10% 0%, rgba(209,68,30,0.06), transparent 40%),
+      radial-gradient(circle at 95% 95%, rgba(27,58,75,0.08), transparent 50%);
+    min-height:100vh;
+    padding:32px 24px 80px;
+  }
+  .wrap{max-width:1100px; margin:0 auto}
+
+  /* Masthead */
+  .masthead{
+    display:grid;
+    grid-template-columns: 1fr auto;
+    align-items:end;
+    padding-bottom:18px;
+    border-bottom:3px solid var(--ink);
+  }
+  .masthead .logo{
+    font-family:'Fraunces', serif;
+    font-weight:900;
+    font-size:clamp(54px, 10vw, 112px);
+    line-height:.9;
+    letter-spacing:-0.03em;
+    font-style:italic;
+  }
+  .masthead .logo .small{
+    font-style:normal;
+    font-weight:700;
+    font-size:0.35em;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    vertical-align:top;
+    display:block;
+    color:var(--accent);
+    font-family:'JetBrains Mono', monospace;
+    margin-bottom:4px;
+  }
+  .masthead .meta{
+    text-align:right;
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    line-height:1.5;
+    color:var(--mute);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+  }
+  .masthead .meta b{color:var(--ink); font-weight:700}
+
+  .tagline{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:300;
+    font-size:clamp(16px, 2.2vw, 22px);
+    margin:10px 0 36px;
+    color:var(--mute);
+    max-width:720px;
+  }
+
+  /* Query card */
+  .query-card{
+    background:var(--paper-2);
+    border:2px solid var(--ink);
+    border-radius:2px;
+    padding:28px 28px 24px;
+    margin-bottom:32px;
+    position:relative;
+    box-shadow: 6px 6px 0 var(--ink);
+  }
+  .query-card::before{
+    content:"01 / QUERY";
+    position:absolute; top:-14px; left:20px;
+    background:var(--paper);
+    padding:0 10px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.18em;
+    color:var(--accent);
+    font-weight:700;
+  }
+  .search-row{
+    display:grid;
+    grid-template-columns: 1fr auto auto;
+    gap:12px;
+    align-items:stretch;
+  }
+  .search-input-wrap{position:relative}
+  .search-input{
+    width:100%;
+    background:var(--paper);
+    border:2px solid var(--ink);
+    padding:14px 18px;
+    font-family:'Fraunces', serif;
+    font-size:20px;
+    font-weight:500;
+    outline:none;
+  }
+  .search-input:focus{background:#fff; box-shadow:0 0 0 3px var(--accent)}
+  .search-input::placeholder{color:var(--mute); font-style:italic; font-weight:300}
+
+  .suggestions{
+    position:absolute; left:0; right:0; top:calc(100% + 2px);
+    background:#fff;
+    border:2px solid var(--ink);
+    max-height:280px; overflow:auto;
+    z-index:20;
+    display:none;
+  }
+  .suggestions.active{display:block}
+  .sugg-item{
+    padding:10px 16px;
+    cursor:pointer;
+    display:flex; justify-content:space-between; gap:12px;
+    border-bottom:1px solid #e6dcc8;
+    font-size:14px;
+  }
+  .sugg-item:last-child{border-bottom:none}
+  .sugg-item:hover, .sugg-item.highlight{background:var(--paper-2)}
+  .sugg-item .name{font-family:'Fraunces', serif; font-weight:500}
+  .sugg-item .meta{font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--mute); text-transform:uppercase}
+
+  .select, .btn{
+    background:var(--paper);
+    border:2px solid var(--ink);
+    padding:14px 18px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    cursor:pointer;
+  }
+  .btn{
+    background:var(--ink);
+    color:var(--paper);
+  }
+  .btn:hover{background:var(--accent); color:var(--paper)}
+  .btn:active{transform:translate(1px, 1px)}
+  .select:hover{background:var(--paper-2)}
+
+  .options-row{
+    display:flex; gap:20px; margin-top:14px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    color:var(--mute);
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    align-items:center;
+  }
+  .options-row label{display:flex; gap:8px; align-items:center; cursor:pointer}
+  .options-row input[type="radio"]{accent-color:var(--accent); transform:scale(1.1)}
+  .options-row input[type="number"]{
+    width:52px; padding:4px 6px;
+    border:1px solid var(--ink); background:var(--paper);
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    font-weight:700;
+  }
+
+  /* Fallback card */
+  .fallback-card{
+    background:#fff;
+    border:2px dashed var(--accent);
+    padding:22px 24px;
+    margin-bottom:32px;
+    display:none;
+    position:relative;
+  }
+  .fallback-card.active{display:block}
+  .fallback-card::before{
+    content:"02 / NOT FOUND — DESCRIBE THE SONG";
+    position:absolute; top:-13px; left:16px;
+    background:var(--paper);
+    padding:0 10px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.12em;
+    color:var(--accent);
+    font-weight:700;
+  }
+  .fallback-card p.intro{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-size:17px;
+    margin-bottom:18px;
+    color:var(--ink);
+  }
+  .field-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap:18px;
+  }
+  .field-grid label{
+    display:block;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--mute);
+    margin-bottom:6px;
+    font-weight:700;
+  }
+  .chip-group{
+    display:flex; flex-wrap:wrap; gap:6px;
+    max-height:140px; overflow:auto;
+    padding:8px; border:1px solid var(--ink);
+    background:var(--paper);
+  }
+  .chip{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    padding:5px 10px;
+    border:1px solid var(--ink);
+    background:transparent;
+    cursor:pointer;
+    user-select:none;
+    letter-spacing:0.04em;
+  }
+  .chip:hover{background:var(--paper-2)}
+  .chip.selected{background:var(--ink); color:var(--paper)}
+  select, input.text{
+    width:100%;
+    padding:10px;
+    border:1px solid var(--ink);
+    background:var(--paper);
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    font-weight:500;
+  }
+
+  /* Results */
+  .results{display:none}
+  .results.active{display:block}
+  .query-banner{
+    display:flex; align-items:baseline; gap:16px; flex-wrap:wrap;
+    padding:14px 0;
+    border-bottom:1px solid var(--ink);
+    margin-bottom:22px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    color:var(--mute);
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+  }
+  .query-banner .title{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-size:28px;
+    font-weight:500;
+    color:var(--ink);
+    text-transform:none;
+    letter-spacing:0;
+  }
+  .query-banner .title .tag{
+    font-family:'JetBrains Mono', monospace;
+    font-style:normal;
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:0.15em;
+    background:var(--accent);
+    color:var(--paper);
+    padding:3px 8px;
+    margin-left:8px;
+    vertical-align:middle;
+  }
+  .query-banner .title .tag.fallback{background:var(--accent-2)}
+
+  .results-list{
+    list-style:none;
+    counter-reset:rank;
+  }
+  .result{
+    display:grid;
+    grid-template-columns: 60px 1fr auto;
+    align-items:center;
+    gap:24px;
+    padding:22px 4px 22px 0;
+    border-bottom:1px solid #d9cfbb;
+    transition: background 0.15s;
+    animation: slideIn 0.5s ease backwards;
+  }
+  .result:hover{background:rgba(255,255,255,0.4)}
+  .result:nth-child(1){animation-delay:0.02s}
+  .result:nth-child(2){animation-delay:0.08s}
+  .result:nth-child(3){animation-delay:0.14s}
+  .result:nth-child(4){animation-delay:0.20s}
+  .result:nth-child(5){animation-delay:0.26s}
+  .result:nth-child(6){animation-delay:0.32s}
+  .result:nth-child(7){animation-delay:0.38s}
+  .result:nth-child(8){animation-delay:0.44s}
+  .result:nth-child(9){animation-delay:0.50s}
+  .result:nth-child(10){animation-delay:0.56s}
+  @keyframes slideIn{
+    from{opacity:0; transform:translateX(-18px)}
+    to{opacity:1; transform:translateX(0)}
+  }
+  .rank-num{
+    font-family:'Fraunces', serif;
+    font-weight:900;
+    font-size:52px;
+    line-height:1;
+    color:var(--accent);
+    font-style:italic;
+    font-feature-settings: "lnum";
+  }
+  .song-info .song-title{
+    font-family:'Fraunces', serif;
+    font-weight:500;
+    font-size:24px;
+    line-height:1.1;
+    margin-bottom:4px;
+  }
+  .song-info .song-meta{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    color:var(--mute);
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+  }
+  .song-info .song-meta b{color:var(--ink); font-weight:700}
+  .score-cell{
+    font-family:'JetBrains Mono', monospace;
+    font-size:24px;
+    font-weight:700;
+    text-align:right;
+    padding-left:12px;
+    border-left:2px solid var(--ink);
+    min-width:90px;
+  }
+  .score-cell .score-label{
+    display:block;
+    font-size:9px;
+    font-weight:500;
+    letter-spacing:0.12em;
+    color:var(--mute);
+    margin-top:4px;
+  }
+
+  /* Message */
+  .msg{
+    padding:16px 20px;
+    background:#fff;
+    border:2px solid var(--accent);
+    font-family:'JetBrains Mono', monospace;
+    font-size:13px;
+    margin-bottom:24px;
+  }
+
+  /* Footer */
+  .colophon{
+    margin-top:60px;
+    padding-top:24px;
+    border-top:2px solid var(--ink);
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    color:var(--mute);
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;
+  }
+
+  /* Loading spinner */
+  .spinner{
+    display:inline-block;
+    width:14px; height:14px;
+    border:2px solid var(--paper);
+    border-top-color:var(--accent);
+    border-radius:50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align:middle;
+    margin-right:8px;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  @media (max-width: 640px){
+    .search-row{grid-template-columns: 1fr}
+    .result{grid-template-columns: 44px 1fr; gap:14px}
+    .score-cell{grid-column:2; text-align:left; border-left:none; border-top:1px solid var(--ink); padding:8px 0 0; margin-top:4px}
+    .rank-num{font-size:40px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Masthead -->
+  <header class="masthead">
+    <div class="logo">
+      <span class="small">CS/DS 3262 · Spring 2026 · Vanderbilt</span>
+      songsys
+    </div>
+    <div class="meta">
+      issue 01<br>
+      <b>{{ total_songs }}</b> songs · <b>27</b> features<br>
+      content-based knn
+    </div>
+  </header>
+  <p class="tagline">A content-based recommender system trained on {{ total_songs }} songs from our class. Type a song title below — or describe a song we've never heard of.</p>
+
+  <!-- Query card -->
+  <section class="query-card">
+    <div class="search-row">
+      <div class="search-input-wrap">
+        <input id="song-input" class="search-input" type="text" autocomplete="off"
+               placeholder="e.g. Levitating, Paranoid Android, Golden, Thriller…">
+        <div id="suggestions" class="suggestions"></div>
+      </div>
+      <select id="metric-select" class="select">
+        <option value="cosine">Cosine</option>
+        <option value="euclidean">Euclidean</option>
+      </select>
+      <button id="go-btn" class="btn">Recommend →</button>
+    </div>
+    <div class="options-row">
+      <label>k = <input id="k-input" type="number" min="1" max="15" value="5"></label>
+      <span>·</span>
+      <span>lookup is case-insensitive · press Enter to search</span>
+    </div>
+  </section>
+
+  <!-- Fallback card (hidden until needed) -->
+  <section id="fallback-card" class="fallback-card">
+    <p class="intro" id="fallback-msg">We don't have that song in the dataset. Describe it so we can still recommend similar songs:</p>
+    <div class="field-grid">
+      <div>
+        <label>Genre(s) — pick any that apply</label>
+        <div class="chip-group" id="genre-chips">
+          {% for g in valid_genres %}
+          <span class="chip" data-value="{{ g }}">{{ g }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <label>Language(s)</label>
+        <div class="chip-group" id="lang-chips">
+          {% for l in valid_languages %}
+          <span class="chip" data-value="{{ l }}">{{ l }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <label>Release era</label>
+        <select id="year-select">
+          <option value="">—</option>
+          {% for y in valid_years %}
+          <option value="{{ y }}">{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Artist (optional)</label>
+        <input id="artist-input" class="text" type="text" placeholder="e.g. Michael Jackson">
+      </div>
+    </div>
+    <div style="margin-top:18px; display:flex; justify-content:flex-end">
+      <button id="fallback-go" class="btn">Recommend with these features →</button>
+    </div>
+  </section>
+
+  <div id="msg-area"></div>
+
+  <!-- Results -->
+  <section id="results" class="results">
+    <div id="query-banner" class="query-banner"></div>
+    <ul id="results-list" class="results-list"></ul>
+  </section>
+
+  <footer class="colophon">
+    <span>Shreeti Amit · Final project · spring 2026</span>
+    <span>cosine similarity · multi-hot features · n = {{ total_songs }}</span>
+  </footer>
+</div>
+
+<script>
+// ---------- Autocomplete ----------
+const input = document.getElementById('song-input');
+const sugg = document.getElementById('suggestions');
+let suggTimer = null;
+let highlighted = -1;
+let suggItems = [];
+
+input.addEventListener('input', () => {
+  const q = input.value.trim();
+  clearTimeout(suggTimer);
+  if (!q) { sugg.classList.remove('active'); sugg.innerHTML=''; return; }
+  suggTimer = setTimeout(() => fetchSuggestions(q), 120);
+});
+
+input.addEventListener('keydown', (e) => {
+  if (!sugg.classList.contains('active')) {
+    if (e.key === 'Enter') { e.preventDefault(); doRecommend(); }
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    highlighted = Math.min(highlighted + 1, suggItems.length - 1);
+    updateHighlight();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    highlighted = Math.max(highlighted - 1, 0);
+    updateHighlight();
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (highlighted >= 0 && suggItems[highlighted]) {
+      input.value = suggItems[highlighted].song_name;
+      sugg.classList.remove('active');
+    }
+    doRecommend();
+  } else if (e.key === 'Escape') {
+    sugg.classList.remove('active');
+  }
+});
+
+function updateHighlight(){
+  [...sugg.children].forEach((c,i) => c.classList.toggle('highlight', i === highlighted));
+}
+
+async function fetchSuggestions(q){
+  try {
+    const r = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`);
+    const items = await r.json();
+    suggItems = items;
+    highlighted = -1;
+    if (!items.length) { sugg.classList.remove('active'); return; }
+    sugg.innerHTML = items.map(it => `
+      <div class="sugg-item" data-name="${escapeHtml(it.song_name)}">
+        <span class="name">${escapeHtml(it.song_name)}</span>
+        <span class="meta">${escapeHtml(it.artist)} · ${escapeHtml(it.genre)} · ${escapeHtml(it.release_year)}</span>
+      </div>`).join('');
+    sugg.classList.add('active');
+    [...sugg.children].forEach((c,i) => {
+      c.addEventListener('click', () => {
+        input.value = items[i].song_name;
+        sugg.classList.remove('active');
+        doRecommend();
+      });
+    });
+  } catch(e){ console.error(e); }
+}
+
+document.addEventListener('click', (e) => {
+  if (!sugg.contains(e.target) && e.target !== input) sugg.classList.remove('active');
+});
+
+// ---------- Chip selectors ----------
+function setupChips(containerId) {
+  document.querySelectorAll(`#${containerId} .chip`).forEach(chip => {
+    chip.addEventListener('click', () => chip.classList.toggle('selected'));
+  });
+}
+setupChips('genre-chips');
+setupChips('lang-chips');
+
+function getSelectedChips(containerId) {
+  return [...document.querySelectorAll(`#${containerId} .chip.selected`)].map(c => c.dataset.value);
+}
+
+// ---------- Recommend ----------
+document.getElementById('go-btn').addEventListener('click', doRecommend);
+document.getElementById('fallback-go').addEventListener('click', doRecommendWithFallback);
+
+async function doRecommend(){
+  const name = input.value.trim();
+  if (!name) return;
+  const metric = document.getElementById('metric-select').value;
+  const k = parseInt(document.getElementById('k-input').value) || 5;
+  showLoading();
+  try {
+    const r = await fetch('/api/recommend', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ song_name: name, k, metric })
+    });
+    const data = await r.json();
+    if (data.error) { showMsg(data.error); return; }
+    if (!data.found && data.needs_fallback) {
+      document.getElementById('fallback-msg').textContent = data.message;
+      document.getElementById('fallback-card').classList.add('active');
+      document.getElementById('results').classList.remove('active');
+      clearMsg();
+      document.getElementById('fallback-card').scrollIntoView({behavior:'smooth', block:'center'});
+      return;
+    }
+    renderResults(data);
+  } catch(e){ showMsg('Network error: ' + e.message); }
+}
+
+async function doRecommendWithFallback(){
+  const name = input.value.trim();
+  if (!name) return;
+  const metric = document.getElementById('metric-select').value;
+  const k = parseInt(document.getElementById('k-input').value) || 5;
+  const fb_genres = getSelectedChips('genre-chips');
+  const fb_langs = getSelectedChips('lang-chips');
+  const fb_year = document.getElementById('year-select').value;
+  const fb_artist = document.getElementById('artist-input').value.trim();
+  if (!fb_genres.length || !fb_langs.length || !fb_year) {
+    showMsg('Please pick at least one genre, one language, and a release era.');
+    return;
+  }
+  showLoading();
+  try {
+    const r = await fetch('/api/recommend', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        song_name: name, k, metric,
+        fallback_genres: fb_genres,
+        fallback_languages: fb_langs,
+        fallback_year: fb_year,
+        fallback_artist: fb_artist || null,
+      })
+    });
+    const data = await r.json();
+    if (data.error) { showMsg(data.error); return; }
+    document.getElementById('fallback-card').classList.remove('active');
+    renderResults(data);
+  } catch(e){ showMsg('Network error: ' + e.message); }
+}
+
+function renderResults(data){
+  clearMsg();
+  const q = data.query;
+  const banner = document.getElementById('query-banner');
+  const tagClass = data.used_fallback ? 'fallback' : '';
+  const tagText = data.used_fallback ? 'FALLBACK' : 'FOUND';
+  banner.innerHTML = `
+    <span>You queried</span>
+    <span class="title">
+      "${escapeHtml(q.song_name)}"
+      <span class="tag ${tagClass}">${tagText}</span>
+    </span>
+    <span>· ${escapeHtml(q.artist)} · ${escapeHtml(q.genre)} · ${escapeHtml(q.release_year)} · ${escapeHtml(q.song_language)} · metric: ${escapeHtml(data.metric)}</span>
+  `;
+  const list = document.getElementById('results-list');
+  list.innerHTML = data.results.map(r => `
+    <li class="result">
+      <div class="rank-num">${String(r.rank).padStart(2,'0')}</div>
+      <div class="song-info">
+        <div class="song-title">${escapeHtml(r.song_name)}</div>
+        <div class="song-meta">
+          <b>${escapeHtml(r.artist)}</b> ·
+          ${escapeHtml(r.genre)} ·
+          ${escapeHtml(r.release_year)} ·
+          ${escapeHtml(r.song_language)}
+        </div>
+      </div>
+      <div class="score-cell">
+        ${r.score.toFixed(3)}
+        <span class="score-label">${escapeHtml(r.score_label)}</span>
+      </div>
+    </li>
+  `).join('');
+  const results = document.getElementById('results');
+  results.classList.add('active');
+  results.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function showLoading(){
+  document.getElementById('msg-area').innerHTML = '<div class="msg"><span class="spinner"></span> crunching cosine similarities…</div>';
+}
+function showMsg(text){
+  document.getElementById('msg-area').innerHTML = '<div class="msg">' + escapeHtml(text) + '</div>';
+}
+function clearMsg(){ document.getElementById('msg-area').innerHTML = ''; }
+
+function escapeHtml(s){
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>
